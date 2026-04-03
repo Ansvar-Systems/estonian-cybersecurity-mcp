@@ -1,32 +1,37 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "eu.ansvar/estonian-cybersecurity-mcp",
-  "description": "Query RIA (Information System Authority of Estonia) cybersecurity guidelines, advisories, and CERT-EE incident reports",
+  "description": "RIA (Information System Authority of Estonia) MCP server — cybersecurity guidelines, advisories, and incident reports",
   "repository": {
     "url": "https://github.com/Ansvar-Systems/estonian-cybersecurity-mcp",
     "source": "github"
   },
   "homepage": "https://ansvar.eu",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "Apache-2.0",
   "keywords": [
-    "ria",
-    "cert-ee",
-    "estonian-cybersecurity",
     "cybersecurity",
     "estonia",
-    "information-security",
+    "regulation",
     "compliance",
-    "mcp",
-    "ansvar"
+    "mcp"
   ],
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@ansvar/estonian-cybersecurity-mcp",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "transport": {
         "type": "stdio"
+      }
+    },
+    {
+      "registryType": "npm",
+      "identifier": "@ansvar/estonian-cybersecurity-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "streamable-http",
+        "url": "https://mcp.ansvar.eu/estonian-cybersecurity/mcp"
       }
     }
   ]
