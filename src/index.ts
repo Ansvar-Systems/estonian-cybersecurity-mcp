@@ -27,6 +27,7 @@ import {
   getAdvisory,
   listFrameworks,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -230,7 +231,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!doc) {
           return errorContent(`Guidance document not found: ${parsed.reference}`);
         }
-        return textContent(doc);
+        const guidanceRecord = doc as Record<string, unknown>;
+        return textContent({
+          ...guidanceRecord,
+          _citation: buildCitation(
+            String(guidanceRecord.reference ?? parsed.reference),
+            String(guidanceRecord.title ?? guidanceRecord.reference ?? parsed.reference),
+            "ee_cyber_get_guidance",
+            { reference: parsed.reference },
+            guidanceRecord.url as string | undefined,
+          ),
+        });
       }
 
       case "ee_cyber_search_advisories": {
@@ -249,7 +260,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!advisory) {
           return errorContent(`Advisory not found: ${parsed.reference}`);
         }
-        return textContent(advisory);
+        const advisoryRecord = advisory as Record<string, unknown>;
+        return textContent({
+          ...advisoryRecord,
+          _citation: buildCitation(
+            String(advisoryRecord.reference ?? parsed.reference),
+            String(advisoryRecord.title ?? advisoryRecord.reference ?? parsed.reference),
+            "ee_cyber_get_advisory",
+            { reference: parsed.reference },
+            advisoryRecord.url as string | undefined,
+          ),
+        });
       }
 
       case "ee_cyber_list_frameworks": {
