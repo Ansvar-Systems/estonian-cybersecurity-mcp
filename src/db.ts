@@ -261,3 +261,26 @@ export function listFrameworks(): Framework[] {
     .prepare("SELECT * FROM frameworks ORDER BY id")
     .all() as Framework[];
 }
+
+// --- Freshness queries --------------------------------------------------------
+
+export interface DataFreshness {
+  guidance_latest: string | null;
+  advisory_latest: string | null;
+  checked_at: string;
+}
+
+export function getDataFreshness(): DataFreshness {
+  const db = getDb();
+  const guidanceRow = db
+    .prepare("SELECT MAX(date) as latest FROM guidance")
+    .get() as { latest: string | null };
+  const advisoryRow = db
+    .prepare("SELECT MAX(date) as latest FROM advisories")
+    .get() as { latest: string | null };
+  return {
+    guidance_latest: guidanceRow.latest,
+    advisory_latest: advisoryRow.latest,
+    checked_at: new Date().toISOString(),
+  };
+}

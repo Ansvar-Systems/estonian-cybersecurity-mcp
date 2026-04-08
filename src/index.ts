@@ -26,6 +26,7 @@ import {
   searchAdvisories,
   getAdvisory,
   listFrameworks,
+  getDataFreshness,
 } from "./db.js";
 import { buildCitation } from "./citation.js";
 
@@ -154,6 +155,24 @@ const TOOLS = [
       required: [],
     },
   },
+  {
+    name: "ee_cyber_list_sources",
+    description: "Return data source URLs and descriptions for all content in this MCP.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "ee_cyber_check_data_freshness",
+    description: "Return the latest ingestion dates for guidance and advisory data in this MCP.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // --- Zod schemas for argument validation --------------------------------------
@@ -197,6 +216,22 @@ function errorContent(message: string) {
   };
 }
 
+function buildMeta(): Record<string, unknown> {
+  let data_age: unknown = null;
+  try {
+    data_age = getDataFreshness();
+  } catch {
+    // DB not yet initialised
+  }
+  return {
+    disclaimer:
+      "For informational purposes only. Verify all information against ria.ee before taking action.",
+    data_age,
+    copyright: "© Riigi Infosüsteemi Amet (RIA)",
+    source_url: "https://www.ria.ee/",
+  };
+}
+
 // --- Server setup ------------------------------------------------------------
 
 const server = new Server(
@@ -222,7 +257,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           status: parsed.status,
           limit: parsed.limit,
         });
-        return textContent({ results, count: results.length });
+        return textContent({ results, count: results.length, _meta: buildMeta() });
       }
 
       case "ee_cyber_get_guidance": {
@@ -231,7 +266,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!doc) {
           return errorContent(`Guidance document not found: ${parsed.reference}`);
         }
-        const guidanceRecord = doc as Record<string, unknown>;
+        const guidanceRecord = doc as unknown as Record<string, unknown>;
         return textContent({
           ...guidanceRecord,
           _citation: buildCitation(
@@ -241,6 +276,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             { reference: parsed.reference },
             guidanceRecord.url as string | undefined,
           ),
+          _meta: buildMeta(),
         });
       }
 
@@ -251,7 +287,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           severity: parsed.severity,
           limit: parsed.limit,
         });
-        return textContent({ results, count: results.length });
+        return textContent({ results, count: results.length, _meta: buildMeta() });
       }
 
       case "ee_cyber_get_advisory": {
@@ -260,7 +296,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!advisory) {
           return errorContent(`Advisory not found: ${parsed.reference}`);
         }
-        const advisoryRecord = advisory as Record<string, unknown>;
+        const advisoryRecord = advisory as unknown as Record<string, unknown>;
         return textContent({
           ...advisoryRecord,
           _citation: buildCitation(
@@ -270,12 +306,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             { reference: parsed.reference },
             advisoryRecord.url as string | undefined,
           ),
+          _meta: buildMeta(),
         });
       }
 
       case "ee_cyber_list_frameworks": {
         const frameworks = listFrameworks();
-        return textContent({ frameworks, count: frameworks.length });
+        return textContent({ frameworks, count: frameworks.length, _meta: buildMeta() });
       }
 
       case "ee_cyber_about": {
@@ -291,7 +328,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             frameworks: "ISKE, national cybersecurity strategy, NIS2 framework",
           },
           tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
+          _meta: buildMeta(),
         });
+      }
+
+      case "ee_cyber_list_sources": {
+        return textContent({
+          sources: [
+            {
+              name: "RIA — Riigi Infosüsteemi Amet (Information System Authority of Estonia)",
+              url: "https://www.ria.ee/",
+              description:
+                "Primary source for Estonian cybersecurity guidelines, ISKE framework, and national cybersecurity strategy documents.",
+            },
+            {
+              name: "CERT-EE",
+              url: "https://www.ria.ee/en/cyber-security/cert-ee.html",
+              description:
+                "Estonian Computer Emergency Response Team — source for security advisories and incident alerts.",
+            },
+          ],
+          _meta: buildMeta(),
+        });
+      }
+
+      case "ee_cyber_check_data_freshness": {
+        const freshness = getDataFreshness();
+        return textContent({ ...freshness, _meta: buildMeta() });
       }
 
       default:

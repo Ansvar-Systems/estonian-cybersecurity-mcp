@@ -29,7 +29,9 @@ import {
   searchAdvisories,
   getAdvisory,
   listFrameworks,
+  getDataFreshness,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -53,7 +55,7 @@ const TOOLS = [
   {
     name: "ee_cyber_search_guidance",
     description:
-      "Full-text search across BSI guidelines and technical reports. Covers Technical Guidelines (TR series), IT-Grundschutz building blocks, BSI Standards, and recommendations.",
+      "Full-text search across RIA cybersecurity guidelines, directives, and technical standards. Covers ISKE security framework requirements, RIA guidance documents, NIS2 implementation guidance, and national cybersecurity strategy documents. Returns matching documents with reference, title, series, and summary.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -66,7 +68,7 @@ const TOOLS = [
         series: {
           type: "string",
           enum: ["ISKE", "RIA-juhend", "NIS2"],
-          description: "Filter by BSI series. Optional.",
+          description: "Filter by RIA series. Optional.",
         },
         status: {
           type: "string",
@@ -81,11 +83,11 @@ const TOOLS = [
   {
     name: "ee_cyber_get_guidance",
     description:
-      "Get a specific BSI guidance document by reference (e.g., 'BSI TR-03116', 'BSI-Standard 200-1', 'SYS.1.1').",
+      "Get a specific RIA guidance document by reference (e.g., 'RIA-ISKE-2023', 'RIA-juhend-001', 'CERT-EE-TG-2024-01').",
     inputSchema: {
       type: "object" as const,
       properties: {
-        reference: { type: "string", description: "BSI document reference" },
+        reference: { type: "string", description: "RIA document reference (e.g., 'RIA-ISKE-2023', 'RIA-juhend-001')" },
       },
       required: ["reference"],
     },
@@ -93,7 +95,7 @@ const TOOLS = [
   {
     name: "ee_cyber_search_advisories",
     description:
-      "Search BSI security advisories and alerts. Returns advisories with severity, affected products, and CVE references.",
+      "Search CERT-EE security advisories and incident alerts. Returns advisories with severity, affected products, and CVE references where available.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -110,11 +112,11 @@ const TOOLS = [
   },
   {
     name: "ee_cyber_get_advisory",
-    description: "Get a specific BSI security advisory by reference (e.g., 'BSI-CB-K24-0001').",
+    description: "Get a specific CERT-EE security advisory by reference (e.g., 'CERT-EE-2024-001').",
     inputSchema: {
       type: "object" as const,
       properties: {
-        reference: { type: "string", description: "BSI advisory reference" },
+        reference: { type: "string", description: "CERT-EE advisory reference (e.g., 'CERT-EE-2024-001')" },
       },
       required: ["reference"],
     },
@@ -122,12 +124,22 @@ const TOOLS = [
   {
     name: "ee_cyber_list_frameworks",
     description:
-      "List all BSI frameworks and standard series covered in this MCP.",
+      "List all RIA/CERT-EE cybersecurity frameworks covered in this MCP, including ISKE, national cybersecurity strategy, and NIS2 implementation framework.",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
   {
     name: "ee_cyber_about",
     description: "Return metadata about this MCP server: version, data source, coverage, and tool list.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "ee_cyber_list_sources",
+    description: "Return data source URLs and descriptions for all content in this MCP.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "ee_cyber_check_data_freshness",
+    description: "Return the latest ingestion dates for guidance and advisory data in this MCP.",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
 ];
@@ -155,6 +167,24 @@ const SearchAdvisoriesArgs = z.object({
 const GetAdvisoryArgs = z.object({
   reference: z.string().min(1),
 });
+
+// --- Meta helper -------------------------------------------------------------
+
+function buildMeta(): Record<string, unknown> {
+  let data_age: unknown = null;
+  try {
+    data_age = getDataFreshness();
+  } catch {
+    // DB not yet initialised
+  }
+  return {
+    disclaimer:
+      "For informational purposes only. Verify all information against ria.ee before taking action.",
+    data_age,
+    copyright: "© Riigi Infosüsteemi Amet (RIA)",
+    source_url: "https://www.ria.ee/",
+  };
+}
 
 // --- MCP server factory ------------------------------------------------------
 
@@ -195,7 +225,7 @@ function createMcpServer(): Server {
             status: parsed.status,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          return textContent({ results, count: results.length, _meta: buildMeta() });
         }
 
         case "ee_cyber_get_guidance": {
@@ -204,7 +234,18 @@ function createMcpServer(): Server {
           if (!doc) {
             return errorContent(`Guidance document not found: ${parsed.reference}`);
           }
-          return textContent(doc);
+          const guidanceRecord = doc as unknown as Record<string, unknown>;
+          return textContent({
+            ...guidanceRecord,
+            _citation: buildCitation(
+              String(guidanceRecord["reference"] ?? parsed.reference),
+              String(guidanceRecord["title"] ?? guidanceRecord["reference"] ?? parsed.reference),
+              "ee_cyber_get_guidance",
+              { reference: parsed.reference },
+              guidanceRecord["url"] as string | undefined,
+            ),
+            _meta: buildMeta(),
+          });
         }
 
         case "ee_cyber_search_advisories": {
@@ -214,7 +255,7 @@ function createMcpServer(): Server {
             severity: parsed.severity,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          return textContent({ results, count: results.length, _meta: buildMeta() });
         }
 
         case "ee_cyber_get_advisory": {
@@ -223,12 +264,23 @@ function createMcpServer(): Server {
           if (!advisory) {
             return errorContent(`Advisory not found: ${parsed.reference}`);
           }
-          return textContent(advisory);
+          const advisoryRecord = advisory as unknown as Record<string, unknown>;
+          return textContent({
+            ...advisoryRecord,
+            _citation: buildCitation(
+              String(advisoryRecord["reference"] ?? parsed.reference),
+              String(advisoryRecord["title"] ?? advisoryRecord["reference"] ?? parsed.reference),
+              "ee_cyber_get_advisory",
+              { reference: parsed.reference },
+              advisoryRecord["url"] as string | undefined,
+            ),
+            _meta: buildMeta(),
+          });
         }
 
         case "ee_cyber_list_frameworks": {
           const frameworks = listFrameworks();
-          return textContent({ frameworks, count: frameworks.length });
+          return textContent({ frameworks, count: frameworks.length, _meta: buildMeta() });
         }
 
         case "ee_cyber_about": {
@@ -236,10 +288,41 @@ function createMcpServer(): Server {
             name: SERVER_NAME,
             version: pkgVersion,
             description:
-              "RIA (Information System Authority of Estonia) and CERT-EE MCP server. Provides access to BSI technical guidelines, IT-Grundschutz building blocks, BSI Standards, and security advisories.",
+              "RIA (Riigi Infosüsteemi Amet — Information System Authority of Estonia) and CERT-EE MCP server. Provides access to Estonian national cybersecurity guidelines, ISKE security framework requirements, NIS2 implementation directives, and CERT-EE security advisories.",
             data_source: "RIA / CERT-EE (https://www.ria.ee/)",
+            coverage: {
+              guidance: "ISKE security framework, RIA cybersecurity guidelines, NIS2 implementation directives",
+              advisories: "CERT-EE security advisories and incident alerts",
+              frameworks: "ISKE, national cybersecurity strategy, NIS2 framework",
+            },
             tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
+            _meta: buildMeta(),
           });
+        }
+
+        case "ee_cyber_list_sources": {
+          return textContent({
+            sources: [
+              {
+                name: "RIA — Riigi Infosüsteemi Amet (Information System Authority of Estonia)",
+                url: "https://www.ria.ee/",
+                description:
+                  "Primary source for Estonian cybersecurity guidelines, ISKE framework, and national cybersecurity strategy documents.",
+              },
+              {
+                name: "CERT-EE",
+                url: "https://www.ria.ee/en/cyber-security/cert-ee.html",
+                description:
+                  "Estonian Computer Emergency Response Team — source for security advisories and incident alerts.",
+              },
+            ],
+            _meta: buildMeta(),
+          });
+        }
+
+        case "ee_cyber_check_data_freshness": {
+          const freshness = getDataFreshness();
+          return textContent({ ...freshness, _meta: buildMeta() });
         }
 
         default:
