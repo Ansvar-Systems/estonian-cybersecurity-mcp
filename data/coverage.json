@@ -1,0 +1,56 @@
+{
+  "schema_version": "1",
+  "mcp_name": "eu.ansvar/estonian-cybersecurity-mcp",
+  "jurisdiction": "EE",
+  "authority": "RIA — Riigi Infosüsteemi Amet",
+  "sources": [
+    {
+      "id": "ria",
+      "name": "RIA — Riigi Infosüsteemi Amet",
+      "url": "https://www.ria.ee/",
+      "content_types": ["guidance", "frameworks"]
+    },
+    {
+      "id": "cert-ee",
+      "name": "CERT-EE",
+      "url": "https://www.ria.ee/en/cyber-security/cert-ee.html",
+      "content_types": ["advisories"]
+    }
+  ],
+  "tables": {
+    "guidance": {
+      "description": "RIA cybersecurity guidelines, directives, and technical standards",
+      "series": ["ISKE", "RIA-juhend", "NIS2"],
+      "types": ["directive", "guideline", "standard", "recommendation"],
+      "statuses": ["current", "superseded", "draft"],
+      "date_range": {
+        "note": "Run ee_cyber_check_data_freshness for live dates"
+      }
+    },
+    "advisories": {
+      "description": "CERT-EE security advisories and incident alerts",
+      "severity_levels": ["critical", "high", "medium", "low"],
+      "date_range": {
+        "note": "Run ee_cyber_check_data_freshness for live dates"
+      }
+    },
+    "frameworks": {
+      "description": "RIA framework series",
+      "entries": ["ISKE", "RIA-juhend", "NIS2"]
+    }
+  },
+  "tools": [
+    "ee_cyber_search_guidance",
+    "ee_cyber_get_guidance",
+    "ee_cyber_search_advisories",
+    "ee_cyber_get_advisory",
+    "ee_cyber_list_frameworks",
+    "ee_cyber_about",
+    "ee_cyber_list_sources",
+    "ee_cyber_check_data_freshness"
+  ],
+  "golden_standard": {
+    "list_sources": "ee_cyber_list_sources",
+    "check_data_freshness": "ee_cyber_check_data_freshness"
+  }
+}
