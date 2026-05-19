@@ -231,7 +231,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!doc) {
           return errorContent(`Guidance document not found: ${parsed.reference}`);
         }
-        const guidanceRecord = doc as Record<string, unknown>;
+        const guidanceRecord = doc as unknown as Record<string, unknown>;
         return textContent({
           ...guidanceRecord,
           _citation: buildCitation(
@@ -260,7 +260,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!advisory) {
           return errorContent(`Advisory not found: ${parsed.reference}`);
         }
-        const advisoryRecord = advisory as Record<string, unknown>;
+        const advisoryRecord = advisory as unknown as Record<string, unknown>;
         return textContent({
           ...advisoryRecord,
           _citation: buildCitation(
